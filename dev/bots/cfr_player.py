@@ -14,7 +14,7 @@ class CFRPlayer(BasePokerPlayer):
     
     def declare_action(self, valid_actions, hole_card, round_state):
         hand_strength = self.evaluate_hand(hole_card, round_state)
-        print(f"Hand strength: {hand_strength}")
+        # print(f"Hand strength: {hand_strength}")
         
         # Simuler un choix basé sur la stratégie apprise
         strategy = self.get_strategy(hole_card, round_state)
@@ -32,8 +32,8 @@ class CFRPlayer(BasePokerPlayer):
     
     def cfr_round(self, hole_card, round_state):
         # Vérifier la structure de round_state['pot']
-        print(round_state)
-        print(round_state['pot'])
+        # print(round_state)
+        # print(round_state['pot'])
 
         # Supposons que round_state['pot'] soit un dictionnaire avec une clé 'total'
         if isinstance(round_state['pot'], dict) and 'total' in round_state['pot']:
@@ -121,13 +121,14 @@ class CFRPlayer(BasePokerPlayer):
 
     def receive_round_result_message(self, winners, hand_info, round_state):
         for hand in hand_info:
-            print(hand)  # Affiche la structure complète de 'hand'
+            # print(hand)  # Affiche la structure complète de 'hand'
             if 'action' in hand:
                 # Exemple basique de calcul de récompense
                 reward = 1 if hand['player'] in winners else -1
                 self.update_regrets(hand['action'], reward, hand['hole_card'], round_state)
             else:
-                print("Key 'action' not found in hand:", hand)
+                # print("Key 'action' not found in hand:", hand)
+                pass
 
 
 
