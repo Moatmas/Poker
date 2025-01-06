@@ -1,120 +1,66 @@
+import random
 from pypokerengine.players import BasePokerPlayer
+from pypokerengine.utils.card_utils import estimate_hole_card_win_rate, gen_cards
 
 class EmulatorPlayer(BasePokerPlayer):
-    def __init__(self):
-        super(EmulatorPlayer, self).__init__()
-        self.seat_id = None  # Initialisation du seat_id
-        self.NB_SIMULATION = 10  # Nombre de simulations pour chaque action
 
     def declare_action(self, valid_actions, hole_card, round_state):
-        if self.seat_id is None:
-            print("Error: seat_id is not set.")
-            return 'fold', 0
+        # Conversion des cartes en objets nécessaires
+        hole_cards = gen_cards(hole_card)
+        community_cards = gen_cards(round_state['community_card'])
 
-        try_actions = ['fold', 'call', 'min_raise', 'max_raise']
-        action_scores = {action: 0 for action in try_actions}
+        # Estimer la probabilité de victoire
+        win_rate = estimate_hole_card_win_rate(
+            nb_simulation=1000,
+            nb_player=len([p for p in round_state['seats'] if p['state'] != "folded"]),
+            hole_card=hole_cards,
+            community_card=community_cards
+        )
 
-        for try_action in try_actions:
-            self._setup_model_for_action(try_action)
-            simulation_results = []
+        # Prendre une décision en fonction de la probabilité de victoire
+        if win_rate > 0.7:
+            action = self._choose_action(valid_actions, "raise")
+        elif win_rate > 0.3:
+            action = self._choose_action(valid_actions, "call")
+        else:
+            action = self._choose_action(valid_actions, "fold")
 
-            for _ in range(self.NB_SIMULATION):
-                updated_state = self._simulate_game(try_action, round_state)
+        return action
 
-                if "players" not in updated_state or not 0 <= self.seat_id < len(updated_state["players"]):
-                    print("Error: Invalid state or seat_id.")
-                    continue
-
-                player_state = updated_state["players"][self.seat_id]
-                if 'stack' not in player_state:
-                    print("Error: 'stack' key not found in player state.")
-                    continue
-
-                result = player_state["stack"]
-                simulation_results.append(result)
-
-            if simulation_results:
-                action_scores[try_action] = sum(simulation_results) / len(simulation_results)
-
-        best_action = max(action_scores, key=action_scores.get)
-        print(f"Best action: {best_action} with scores: {action_scores}")
-        return best_action, self._get_action_amount(best_action, valid_actions)
-
-    def set_seat(self, seat_id):
-        self.seat_id = seat_id
-        print(f"Seat ID set to: {self.seat_id}")
+    def _choose_action(self, valid_actions, action_type):
+        for action in valid_actions:
+            if action['action'] == action_type:
+                if action_type == "raise":
+                    # Déterminer le montant du raise
+                    amount = random.randint(
+                        action['amount']['min'], 
+                        action['amount']['max']
+                    )
+                    return action_type, amount
+                else:
+                    return action_type, action.get('amount', 0)
+        # Si l'action demandée n'est pas possible, effectuer l'action par défaut
+        return valid_actions[0]['action'], valid_actions[0].get('amount', 0)
 
     def receive_game_start_message(self, game_info):
-        if 'players' not in game_info:
-            print("Erreur: la clé 'players' est manquante dans game_info")
-            return
+        # Initialisation au début du jeu
+        self.nb_players = len(game_info['seats'])
 
-        for idx, player in enumerate(game_info['players']):
-            if player['uuid'] == self.uuid:
-                self.set_seat(idx)
-                break
-
-    def receive_round_start_message(self, round_count, hole, seats):
-        print(f"Tour {round_count} commence.")
-        print(f"Cartes privatives (hole): {hole}")
-        print(f"Places assises: {seats}")
-        self.hole_cards = hole
-        self.seats = seats
+    def receive_round_start_message(self, round_count, hole_card, seats):
+        # Début d'une nouvelle manche
+        self.hole_card = hole_card
 
     def receive_street_start_message(self, street, round_state):
-        """Gestion du début de chaque rue de paris (ex: pre-flop, flop, turn, river)."""
-        print(f"Début de la rue {street}.")
-        print(f"Etat du tour: {round_state}")
-        # Tu peux ici prendre des actions spécifiques pour chaque rue
-        # Par exemple, en analysant les cartes visibles pour prendre des décisions stratégiques.
+        # Début d'un nouveau tour (Flop, Turn, River)
+        self.current_street = street
 
-    def _simulate_game(self, action, round_state):
-        simulated_state = {
-            "players": [
-                {"name": "emulator_player", "stack": 250},
-                {"name": "fish_player", "stack": 200},
-                {"name": "smart_player", "stack": 300},
-                {"name": "cfr_player", "stack": 280},
-            ]
-        }
-
-        if action == "fold":
-            pass
-        elif action == "call":
-            simulated_state["players"][self.seat_id]["stack"] -= 10
-        elif action == "min_raise":
-            simulated_state["players"][self.seat_id]["stack"] += 20
-        elif action == "max_raise":
-            simulated_state["players"][self.seat_id]["stack"] += 50
-
-        for i, player in enumerate(simulated_state["players"]):
-            if i != self.seat_id:
-                if player["stack"] > 250:
-                    player["stack"] += 5
-                else:
-                    player["stack"] -= 5
-
-        return simulated_state
-
-    def _setup_model_for_action(self, action):
-        print(f"Setting up model for action: {action}")
-
-    def _get_action_amount(self, action, valid_actions):
-        if action == 'fold':
-            return 0
-        elif action == 'call':
-            return valid_actions[1]['amount']
-        elif action == 'min_raise':
-            return valid_actions[2]['amount']['min']
-        elif action == 'max_raise':
-            return valid_actions[2]['amount']['max']
-
-    def receive_game_update_message(self, action, round_state):
-        pass
+    def receive_game_update_message(self, new_action, round_state):
+        # Mise à jour de l'état du jeu suite à une action d'un autre joueur
+        self.round_state = round_state
 
     def receive_round_result_message(self, winners, hand_info, round_state):
-        pass
+        # Résultats d'une manche
+        self.last_winners = winners
 
-# Fonction pour enregistrer le joueur
 def setup_ai():
     return EmulatorPlayer()
