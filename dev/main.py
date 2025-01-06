@@ -6,6 +6,7 @@ from bots.smart_player import SmartPlayer
 from bots.cfr_player import CFRPlayer
 from bots.emulator_player import EmulatorPlayer
 from bots.montecarlo_player import MonteCarloPlayer
+from bots.hybrid_player import HybridPlayer
 
 # Initialisation des bots en dehors de la fonction run_game
 cfr_bot = CFRPlayer()
@@ -13,6 +14,8 @@ fish_bot = FishPlayer()
 smart_bot = SmartPlayer()
 emulator_bot = EmulatorPlayer()
 montecarlo_bot = MonteCarloPlayer()
+hybrid_bot = HybridPlayer()
+
 
 
 # Configuration initiale
@@ -25,6 +28,7 @@ def run_game(initial_stack=5000):
     config.register_player(name="Cfr_player", algorithm=CFRPlayer())
     config.register_player(name="Emulator_player", algorithm=EmulatorPlayer())
     config.register_player(name="MonteCarlo_player", algorithm=MonteCarloPlayer())
+    config.register_player(name="Hybrid_player", algorithm=HybridPlayer())
 
     # Lancement de la partie
     game_result = start_poker(config, verbose=0)
@@ -32,8 +36,8 @@ def run_game(initial_stack=5000):
 
 # Fonction pour simuler plusieurs parties
 def simulate_games(nb_games, initial_stack=5000):
-    stats = {"FishPlayer": 0, "SmartPlayer": 0, "Cfr_player": 0, "Emulator_player": 0, "MonteCarlo_player": 0}
-    stacks_history = {"FishPlayer": [], "SmartPlayer": [], "Cfr_player": [], "Emulator_player": [], "MonteCarlo_player": []}
+    stats = {"FishPlayer": 0, "SmartPlayer": 0, "Cfr_player": 0, "Emulator_player": 0, "MonteCarlo_player": 0, "Hybrid_player": 0}
+    stacks_history = {"FishPlayer": [], "SmartPlayer": [], "Cfr_player": [], "Emulator_player": [], "MonteCarlo_player": [], "Hybrid_player": []}
 
     for i in range(nb_games):
         game_result = run_game(initial_stack=initial_stack)
@@ -88,21 +92,21 @@ plt.xlabel("Bot")
 plt.show(block=False)
 
 # 4. Victoires cumulatives
-# cumulative_wins = {bot: [0] * nb_games for bot in stats.keys()}
-# for i in range(nb_games):
-#     game_result = run_game(initial_stack=initial_stack)
-#     max_stack_bot = max(game_result['players'], key=lambda p: p['stack'])['name']
-#     for bot in stats.keys():
-#         cumulative_wins[bot][i] = cumulative_wins[bot][i-1] + (1 if bot == max_stack_bot else 0)
+cumulative_wins = {bot: [0] * nb_games for bot in stats.keys()}
 
-# plt.figure(figsize=(10, 6))
-# for bot, wins in cumulative_wins.items():
-#     plt.plot(wins, label=bot)
-# plt.title("Évolution des victoires cumulées")
-# plt.xlabel("Partie")
-# plt.ylabel("Nombre de victoires")
-# plt.legend()
-# plt.show(block=False)
+for i in range(nb_games):
+    max_stack_bot = max(stacks_history, key=lambda bot: stacks_history[bot][i])
+    for bot in stats.keys():
+        cumulative_wins[bot][i] = cumulative_wins[bot][i - 1] + (1 if bot == max_stack_bot else 0)
+
+plt.figure(figsize=(10, 6))
+for bot, wins in cumulative_wins.items():
+    plt.plot(wins, label=bot)
+plt.title("Évolution des victoires cumulées")
+plt.xlabel("Partie")
+plt.ylabel("Nombre de victoires")
+plt.legend()
+plt.show(block=False)
 
 # 5. Tableau des statistiques
 average_stacks = {bot: sum(stacks) / len(stacks) for bot, stacks in stacks_history.items()}
@@ -140,5 +144,26 @@ average_wins = []
 #         plt.show(block=False)
 #     else:
 #         print("Aucune donnée n'a été générée pour les victoires moyennes.")
+# 7. Évolution des stacks moyens au fil des parties
+plt.figure(figsize=(10, 6))
+
+# Calcul des moyennes cumulées des stacks
+cumulative_avg_stacks = {bot: [] for bot in stacks_history.keys()}
+for i in range(nb_games):
+    for bot in stacks_history.keys():
+        cumulative_avg_stacks[bot].append(
+            sum(stacks_history[bot][:i + 1]) / (i + 1)
+        )
+
+# Tracer les moyennes cumulées des stacks
+for bot, avg_stacks in cumulative_avg_stacks.items():
+    plt.plot(avg_stacks, label=bot)
+
+plt.title("Évolution des stacks moyens par bot au fil des parties")
+plt.xlabel("Partie")
+plt.ylabel("Stack moyen cumulatif")
+plt.legend()
+plt.grid(True)
+plt.show()
 
 plt.show()
